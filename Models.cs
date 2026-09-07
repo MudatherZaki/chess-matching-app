@@ -105,6 +105,10 @@ public class Proposal
 
     public string? Message { get; set; }
 
+    // Meeting location and distance filter
+    public Point? MeetingLocation { get; set; } // Where proposer wants to play
+    public int MaxDistanceKm { get; set; } = 10; // Max distance from meeting location to search for available player
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     // Optional link to accepted match

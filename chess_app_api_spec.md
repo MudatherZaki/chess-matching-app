@@ -234,13 +234,16 @@ Get nearby available players.
 ## Proposals / Match Requests
 
 ### POST `/proposals`
-Create a new match proposal.
+Create a new match proposal with meeting location and distance filter.
 
 **Request:**
 ```json
 {
   "receiverId": "550e8400-e29b-41d4-a716-446655440001",
-  "message": "Want to play a quick rapid game?"
+  "message": "Want to play a quick rapid game?",
+  "meetingLatitude": 30.0444,
+  "meetingLongitude": 31.2357,
+  "maxDistanceKm": 10
 }
 ```
 
@@ -252,6 +255,11 @@ Create a new match proposal.
   "receiverId": "550e8400-e29b-41d4-a716-446655440001",
   "status": "pending",
   "message": "Want to play a quick rapid game?",
+  "meetingLocation": {
+    "latitude": 30.0444,
+    "longitude": 31.2357
+  },
+  "maxDistanceKm": 10,
   "expiresAt": "2024-01-16T10:30:00Z",
   "createdAt": "2024-01-15T10:30:00Z"
 }
@@ -260,7 +268,7 @@ Create a new match proposal.
 ---
 
 ### GET `/proposals/incoming`
-Get pending incoming proposals.
+Get pending incoming proposals with distance from your location to meeting location.
 
 **Query Params:**
 - `status` (enum: pending, accepted, rejected - default: pending)
@@ -282,6 +290,12 @@ Get pending incoming proposals.
       },
       "status": "pending",
       "message": "Want to play a quick rapid game?",
+      "meetingLocation": {
+        "latitude": 30.0444,
+        "longitude": 31.2357
+      },
+      "maxDistanceKm": 10,
+      "distanceFromYouKm": 2.5,
       "expiresAt": "2024-01-16T10:30:00Z",
       "createdAt": "2024-01-15T10:30:00Z"
     }
@@ -304,16 +318,13 @@ Get user's sent proposals.
 ---
 
 ### POST `/proposals/{proposalId}/accept`
-Accept an incoming proposal.
+Accept an incoming proposal. Meeting location is already set in the proposal.
 
 **Request:**
 ```json
 {
-  "meetingLocation": {
-    "latitude": 30.0444,
-    "longitude": 31.2357,
-    "address": "Cairo Chess Club"
-  }
+  // Meeting location is already set in the proposal when it was created
+  // No request body needed - just send empty JSON object
 }
 ```
 

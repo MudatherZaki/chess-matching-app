@@ -79,6 +79,10 @@ public class ProposalService : IProposalService
         if (!receiver.IsAvailable || receiver.AvailabilityExpiresAt <= DateTime.UtcNow)
             throw new InvalidOperationException("Receiver is not currently available");
 
+        // Validate max distance
+        if (request.MaxDistanceKm < 1 || request.MaxDistanceKm > 100)
+            throw new InvalidOperationException("MaxDistanceKm must be between 1 and 100");
+
         // Check for duplicate pending proposals
         var existingProposal = await _dbContext.Proposals.FirstOrDefaultAsync(p =>
             p.ProposerId == proposerId &&
@@ -89,12 +93,20 @@ public class ProposalService : IProposalService
         if (existingProposal != null)
             throw new InvalidOperationException("You already have a pending proposal to this user");
 
+        // Create meeting location point
+        var geometryFactory = new GeometryFactory(
+            new NetTopologySuite.Geometries.PrecisionModel(), 4326);
+        var meetingLocation = geometryFactory.CreatePoint(
+            new NetTopologySuite.Geometries.Coordinate(request.MeetingLongitude, request.MeetingLatitude));
+
         var proposal = new Proposal
         {
             Id = Guid.NewGuid(),
             ProposerId = proposerId,
             ReceiverId = request.ReceiverId,
             Message = request.Message,
+            MeetingLocation = meetingLocation,
+            MaxDistanceKm = request.MaxDistanceKm,
             Status = ProposalStatus.Pending,
             ExpiresAt = DateTime.UtcNow.AddHours(24),
             CreatedAt = DateTime.UtcNow
@@ -103,8 +115,8 @@ public class ProposalService : IProposalService
         _dbContext.Proposals.Add(proposal);
         await _dbContext.SaveChangesAsync();
 
-        _logger.LogInformation("Proposal created: {ProposalId} from {ProposerId} to {ReceiverId}",
-            proposal.Id, proposerId, request.ReceiverId);
+        _logger.LogInformation("Proposal created: {ProposalId} from {ProposerId} to {ReceiverId} at location ({Lat},{Lon}) with max distance {MaxDist}km",
+            proposal.Id, proposerId, request.ReceiverId, request.MeetingLatitude, request.MeetingLongitude, request.MaxDistanceKm);
 
         return MapToProposalResponse(proposal);
     }
@@ -112,6 +124,10 @@ public class ProposalService : IProposalService
     public async Task<IncomingProposalsResponse> GetIncomingProposalsAsync(
         Guid userId, string status = "pending", int limit = 20)
     {
+        var currentUser = await _dbContext.Users.FindAsync(userId);
+        if (currentUser == null)
+            throw new KeyNotFoundException($"User {userId} not found");
+
         var proposals = await _dbContext.Proposals
             .Include(p => p.Proposer)
             .ThenInclude(u => u.Stats)
@@ -127,7 +143,7 @@ public class ProposalService : IProposalService
         var response = new IncomingProposalsResponse();
         foreach (var proposal in proposals)
         {
-            response.Proposals.Add(MapToProposalDetailResponse(proposal));
+            response.Proposals.Add(MapToProposalWithDistanceDto(proposal, currentUser.Location));
         }
 
         return response;
@@ -181,7 +197,10 @@ public class ProposalService : IProposalService
             throw new InvalidOperationException("Proposal has expired");
         }
 
-        // Create match record
+        if (proposal.MeetingLocation == null)
+            throw new InvalidOperationException("Proposal does not have a meeting location set");
+
+        // Create match record using the proposal's meeting location
         var match = new Match
         {
             Id = Guid.NewGuid(),
@@ -189,19 +208,10 @@ public class ProposalService : IProposalService
             Player2Id = proposal.ReceiverId,
             ProposalId = proposalId,
             PlayedAt = DateTime.UtcNow,
+            Location = proposal.MeetingLocation, // Use proposal's meeting location
             Outcome = MatchOutcome.NotPlayed,
             CreatedAt = DateTime.UtcNow
         };
-
-        if (request.MeetingLocation != null)
-        {
-            var geometryFactory = new GeometryFactory(
-                new NetTopologySuite.Geometries.PrecisionModel(), 4326);
-            match.Location = geometryFactory.CreatePoint(
-                new NetTopologySuite.Geometries.Coordinate(
-                    request.MeetingLocation.Longitude,
-                    request.MeetingLocation.Latitude));
-        }
 
         proposal.Status = ProposalStatus.Accepted;
         proposal.RespondedAt = DateTime.UtcNow;
@@ -210,7 +220,7 @@ public class ProposalService : IProposalService
         _dbContext.Matches.Add(match);
         await _dbContext.SaveChangesAsync();
 
-        _logger.LogInformation("Proposal {ProposalId} accepted. Match {MatchId} created",
+        _logger.LogInformation("Proposal {ProposalId} accepted. Match {MatchId} created at meeting location",
             proposalId, match.Id);
 
         return new AcceptProposalResponse
@@ -276,6 +286,12 @@ public class ProposalService : IProposalService
             ReceiverId = proposal.ReceiverId,
             Status = proposal.Status.ToString(),
             Message = proposal.Message,
+            MeetingLocation = proposal.MeetingLocation != null ? new LocationDto
+            {
+                Latitude = proposal.MeetingLocation.Coordinate.Y,
+                Longitude = proposal.MeetingLocation.Coordinate.X
+            } : null,
+            MaxDistanceKm = proposal.MaxDistanceKm,
             ExpiresAt = proposal.ExpiresAt,
             CreatedAt = proposal.CreatedAt
         };
@@ -302,6 +318,35 @@ public class ProposalService : IProposalService
             Proposer = MapToPublicProfile(proposal.Receiver),
             Status = proposal.Status.ToString(),
             Message = proposal.Message,
+            ExpiresAt = proposal.ExpiresAt,
+            CreatedAt = proposal.CreatedAt
+        };
+    }
+
+    private ProposalWithDistanceDto MapToProposalWithDistanceDto(Proposal proposal, NetTopologySuite.Geometries.Point? userLocation)
+    {
+        var distance = 0.0m;
+        
+        // Calculate distance from user to proposal's meeting location if both exist
+        if (userLocation != null && proposal.MeetingLocation != null)
+        {
+            var distanceMeters = userLocation.Distance(proposal.MeetingLocation);
+            distance = (decimal)Math.Round(distanceMeters / 1000.0, 2); // Convert to km
+        }
+
+        return new ProposalWithDistanceDto
+        {
+            Id = proposal.Id,
+            Proposer = MapToPublicProfile(proposal.Proposer),
+            Status = proposal.Status.ToString(),
+            Message = proposal.Message,
+            MeetingLocation = proposal.MeetingLocation != null ? new LocationDto
+            {
+                Latitude = proposal.MeetingLocation.Coordinate.Y,
+                Longitude = proposal.MeetingLocation.Coordinate.X
+            } : null,
+            MaxDistanceKm = proposal.MaxDistanceKm,
+            DistanceFromYouKm = distance,
             ExpiresAt = proposal.ExpiresAt,
             CreatedAt = proposal.CreatedAt
         };

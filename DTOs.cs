@@ -171,6 +171,13 @@ public class CreateProposalRequest
 {
     public Guid ReceiverId { get; set; }
     public string? Message { get; set; }
+    
+    // Meeting location where proposer wants to play
+    public double MeetingLatitude { get; set; }
+    public double MeetingLongitude { get; set; }
+    
+    // Max distance from meeting location to search for players
+    public int MaxDistanceKm { get; set; } = 10;
 }
 
 public class ProposalResponse
@@ -180,6 +187,8 @@ public class ProposalResponse
     public Guid ReceiverId { get; set; }
     public string Status { get; set; } = null!;
     public string? Message { get; set; }
+    public LocationDto? MeetingLocation { get; set; }
+    public int MaxDistanceKm { get; set; }
     public DateTime ExpiresAt { get; set; }
     public DateTime CreatedAt { get; set; }
 }
@@ -190,13 +199,28 @@ public class ProposalDetailResponse
     public UserPublicProfileResponse Proposer { get; set; } = null!;
     public string Status { get; set; } = null!;
     public string? Message { get; set; }
+    public LocationDto? MeetingLocation { get; set; }
+    public int MaxDistanceKm { get; set; }
+    public DateTime ExpiresAt { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
+public class ProposalWithDistanceDto
+{
+    public Guid Id { get; set; }
+    public UserPublicProfileResponse Proposer { get; set; } = null!;
+    public string Status { get; set; } = null!;
+    public string? Message { get; set; }
+    public LocationDto? MeetingLocation { get; set; }
+    public int MaxDistanceKm { get; set; }
+    public decimal DistanceFromYouKm { get; set; } // Distance from current user to meeting location
     public DateTime ExpiresAt { get; set; }
     public DateTime CreatedAt { get; set; }
 }
 
 public class IncomingProposalsResponse
 {
-    public List<ProposalDetailResponse> Proposals { get; set; } = new();
+    public List<ProposalWithDistanceDto> Proposals { get; set; } = new();
     public int Count => Proposals.Count;
 }
 
@@ -208,7 +232,8 @@ public class OutgoingProposalsResponse
 
 public class AcceptProposalRequest
 {
-    public LocationDto? MeetingLocation { get; set; }
+    // Meeting location is already set in the proposal when it was created
+    // Just need to confirm acceptance
 }
 
 public class AcceptProposalResponse

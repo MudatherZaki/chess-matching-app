@@ -128,10 +128,21 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(e => e.Status);
             entity.HasIndex(e => e.ExpiresAt);
 
+            // Spatial index for meeting location queries
+            entity.HasIndex(e => e.MeetingLocation)
+                .HasMethod("GIST");
+
             entity.Property(e => e.Status)
                 .HasConversion(new EnumToStringConverter<ProposalStatus>());
 
             entity.Property(e => e.Message).HasColumnType("text");
+
+            // PostGIS Point for meeting location
+            entity.Property(e => e.MeetingLocation)
+                .HasColumnType("geography (point, 4326)");
+
+            entity.Property(e => e.MaxDistanceKm)
+                .HasDefaultValue(10);
 
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("NOW()");

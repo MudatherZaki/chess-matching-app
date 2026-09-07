@@ -81,6 +81,10 @@ CREATE TABLE proposals (
     -- Optional message
     message TEXT,
     
+    -- Meeting location and distance filter
+    meeting_location GEOGRAPHY(POINT, 4326), -- Where proposer wants to play
+    max_distance_km INT DEFAULT 10, -- Max distance from meeting location to search for available player
+    
     -- Metadata
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     
@@ -92,6 +96,8 @@ CREATE INDEX idx_proposals_receiver_pending ON proposals(receiver_id, status)
 CREATE INDEX idx_proposals_proposer ON proposals(proposer_id);
 CREATE INDEX idx_proposals_status ON proposals(status);
 CREATE INDEX idx_proposals_expires ON proposals(expires_at);
+-- Spatial index for meeting location queries
+CREATE INDEX idx_proposals_meeting_location ON proposals USING GIST(meeting_location);
 
 -- =====================================================
 -- MATCHES / COMPLETED GAMES

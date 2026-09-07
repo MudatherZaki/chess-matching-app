@@ -81,9 +81,8 @@ CREATE TABLE proposals (
     -- Optional message
     message TEXT,
     
-    -- Meeting location and distance filter
-    meeting_location GEOGRAPHY(POINT, 4326), -- Where proposer wants to play
-    max_distance_km INT DEFAULT 10, -- Max distance from meeting location to search for available player
+    -- Meeting location (where proposer wants to play)
+    meeting_location GEOGRAPHY(POINT, 4326),
     
     -- Metadata
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

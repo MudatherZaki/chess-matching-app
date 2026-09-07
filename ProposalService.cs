@@ -79,10 +79,6 @@ public class ProposalService : IProposalService
         if (!receiver.IsAvailable || receiver.AvailabilityExpiresAt <= DateTime.UtcNow)
             throw new InvalidOperationException("Receiver is not currently available");
 
-        // Validate max distance
-        if (request.MaxDistanceKm < 1 || request.MaxDistanceKm > 100)
-            throw new InvalidOperationException("MaxDistanceKm must be between 1 and 100");
-
         // Check for duplicate pending proposals
         var existingProposal = await _dbContext.Proposals.FirstOrDefaultAsync(p =>
             p.ProposerId == proposerId &&
@@ -106,7 +102,6 @@ public class ProposalService : IProposalService
             ReceiverId = request.ReceiverId,
             Message = request.Message,
             MeetingLocation = meetingLocation,
-            MaxDistanceKm = request.MaxDistanceKm,
             Status = ProposalStatus.Pending,
             ExpiresAt = DateTime.UtcNow.AddHours(24),
             CreatedAt = DateTime.UtcNow
@@ -115,8 +110,8 @@ public class ProposalService : IProposalService
         _dbContext.Proposals.Add(proposal);
         await _dbContext.SaveChangesAsync();
 
-        _logger.LogInformation("Proposal created: {ProposalId} from {ProposerId} to {ReceiverId} at location ({Lat},{Lon}) with max distance {MaxDist}km",
-            proposal.Id, proposerId, request.ReceiverId, request.MeetingLatitude, request.MeetingLongitude, request.MaxDistanceKm);
+        _logger.LogInformation("Proposal created: {ProposalId} from {ProposerId} to {ReceiverId} at location ({Lat},{Lon})",
+            proposal.Id, proposerId, request.ReceiverId, request.MeetingLatitude, request.MeetingLongitude);
 
         return MapToProposalResponse(proposal);
     }
@@ -345,7 +340,6 @@ public class ProposalService : IProposalService
                 Latitude = proposal.MeetingLocation.Coordinate.Y,
                 Longitude = proposal.MeetingLocation.Coordinate.X
             } : null,
-            MaxDistanceKm = proposal.MaxDistanceKm,
             DistanceFromYouKm = distance,
             ExpiresAt = proposal.ExpiresAt,
             CreatedAt = proposal.CreatedAt

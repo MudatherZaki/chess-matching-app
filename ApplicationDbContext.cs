@@ -141,9 +141,6 @@ public class ApplicationDbContext : DbContext
             entity.Property(e => e.MeetingLocation)
                 .HasColumnType("geography (point, 4326)");
 
-            entity.Property(e => e.MaxDistanceKm)
-                .HasDefaultValue(10);
-
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("NOW()");
 

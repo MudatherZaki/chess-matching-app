@@ -175,9 +175,6 @@ public class CreateProposalRequest
     // Meeting location where proposer wants to play
     public double MeetingLatitude { get; set; }
     public double MeetingLongitude { get; set; }
-    
-    // Max distance from meeting location to search for players
-    public int MaxDistanceKm { get; set; } = 10;
 }
 
 public class ProposalResponse
@@ -188,7 +185,6 @@ public class ProposalResponse
     public string Status { get; set; } = null!;
     public string? Message { get; set; }
     public LocationDto? MeetingLocation { get; set; }
-    public int MaxDistanceKm { get; set; }
     public DateTime ExpiresAt { get; set; }
     public DateTime CreatedAt { get; set; }
 }
@@ -200,7 +196,6 @@ public class ProposalDetailResponse
     public string Status { get; set; } = null!;
     public string? Message { get; set; }
     public LocationDto? MeetingLocation { get; set; }
-    public int MaxDistanceKm { get; set; }
     public DateTime ExpiresAt { get; set; }
     public DateTime CreatedAt { get; set; }
 }
@@ -212,7 +207,6 @@ public class ProposalWithDistanceDto
     public string Status { get; set; } = null!;
     public string? Message { get; set; }
     public LocationDto? MeetingLocation { get; set; }
-    public int MaxDistanceKm { get; set; }
     public decimal DistanceFromYouKm { get; set; } // Distance from current user to meeting location
     public DateTime ExpiresAt { get; set; }
     public DateTime CreatedAt { get; set; }

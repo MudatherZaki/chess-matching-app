@@ -18,6 +18,9 @@
 
     <!-- Authentication & Security -->
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
+    <!-- BCrypt.Net-Next: replaces the previous unsalted SHA-512 password hashing.
+         See AuthService.cs HashPassword/VerifyPassword. -->
+    <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
     <!-- 7.0.2 (previous pin) both conflicts with JwtBearer's transitive requirement
          of >= 7.0.3 (NU1605 downgrade error) AND carries a moderate DoS advisory,
          GHSA-59j7-ghrg-fj52, fixed somewhere between 7.0.2 and 7.1.2. -->

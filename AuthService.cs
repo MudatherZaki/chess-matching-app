@@ -152,17 +152,17 @@ public class AuthService : IAuthService
 
     public string HashPassword(string password)
     {
-        using (var sha512 = SHA512.Create())
-        {
-            var hashedBytes = sha512.ComputeHash(Encoding.UTF8.GetBytes(password));
-            return Convert.ToBase64String(hashedBytes);
-        }
+        // BCrypt automatically generates and embeds a random salt per-password,
+        // and its work factor makes brute-forcing deliberately expensive - unlike
+        // the previous plain SHA-512 hash, which was unsalted (identical passwords
+        // produced identical hashes, and precomputed rainbow tables applied) and
+        // fast (cheap to brute-force offline if the hash ever leaked).
+        return BCrypt.Net.BCrypt.HashPassword(password, workFactor: 12);
     }
 
     public bool VerifyPassword(string password, string hash)
     {
-        var hashOfInput = HashPassword(password);
-        return hashOfInput == hash;
+        return BCrypt.Net.BCrypt.Verify(password, hash);
     }
 
     private string GenerateAccessToken(User user)

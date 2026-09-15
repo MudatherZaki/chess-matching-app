@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using NetTopologySuite;
 using NetTopologySuite.Geometries;
 using ChessApp.Backend.Models;
 
@@ -147,7 +148,7 @@ public class ApplicationDbContext : DbContext
                 .HasDefaultValueSql("NOW()");
 
             // Constraint: proposer != receiver
-            entity.HasCheckConstraint("ck_different_users", "proposer_id != receiver_id");
+            entity.ToTable(t => t.HasCheckConstraint("ck_different_users", "proposer_id != receiver_id"));
 
             // Optional match relationship
             entity.HasOne(e => e.Match)
@@ -221,7 +222,7 @@ public class ApplicationDbContext : DbContext
                 .HasDefaultValueSql("NOW()");
 
             // Constraint: blocker != blocked
-            entity.HasCheckConstraint("ck_different_users", "blocker_id != blocked_id");
+            entity.ToTable(t => t.HasCheckConstraint("ck_different_users", "blocker_id != blocked_id"));
         });
 
         // =====================================================

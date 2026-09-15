@@ -27,6 +27,12 @@
     <PackageReference Include="FluentValidation" Version="11.8.1" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="11.8.1" />
 
+    <!-- Swagger / OpenAPI - Program.cs calls AddSwaggerGen/UseSwagger/UseSwaggerUI
+         (Swashbuckle) and .WithOpenApi() on a minimal API endpoint
+         (Microsoft.AspNetCore.OpenApi); neither package was referenced before. -->
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.0" />
+
     <!-- Note: AutoMapper was removed. It was injected into UserService but
          .Map() was never actually called anywhere (dead code), and current
          versions carry a high-severity DoS advisory (GHSA-rvv3-g6hj-g44x);

@@ -109,9 +109,6 @@ builder.Services.AddScoped(_ =>
             builder.Configuration["Azure:StorageAccount"],
             builder.Configuration["Azure:StorageKey"])));
 
-// AutoMapper
-builder.Services.AddAutoMapper(typeof(Program));
-
 // =====================================================
 // CORS
 // =====================================================

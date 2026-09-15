@@ -18,15 +18,22 @@
 
     <!-- Authentication & Security -->
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.0.2" />
+    <!-- 7.0.2 (previous pin) both conflicts with JwtBearer's transitive requirement
+         of >= 7.0.3 (NU1605 downgrade error) AND carries a moderate DoS advisory,
+         GHSA-59j7-ghrg-fj52, fixed somewhere between 7.0.2 and 7.1.2. -->
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.1.2" />
     
     <!-- Validation -->
     <PackageReference Include="FluentValidation" Version="11.8.1" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="11.8.1" />
 
-    <!-- Mapping -->
-    <PackageReference Include="AutoMapper" Version="13.0.1" />
-    <PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" Version="12.0.1" />
+    <!-- Note: AutoMapper was removed. It was injected into UserService but
+         .Map() was never actually called anywhere (dead code), and current
+         versions carry a high-severity DoS advisory (GHSA-rvv3-g6hj-g44x);
+         the patched versions (15.1.1+/16.1.1+) also moved to a commercial
+         license as of v15. Every other service in this codebase already maps
+         DTOs by hand (see ProposalService.cs's MapTo*Response methods) -
+         follow that pattern if mapping is needed again. -->
 
     <!-- Logging & Diagnostics -->
     <PackageReference Include="Serilog" Version="3.1.1" />
@@ -42,13 +49,15 @@
          was removed here; referencing it against net8.0 would fail restore. -->
 
     <!-- Geospatial -->
-    <PackageReference Include="NetTopologySuite" Version="2.5.1" />
-    <PackageReference Include="NetTopologySuite.Geometries.Extended" Version="1.0.0" />
+    <PackageReference Include="NetTopologySuite" Version="2.6.0" />
+    <!-- "NetTopologySuite.Geometries.Extended" was removed: no such package
+         exists on nuget.org (NU1101). Everything used here - GeometryFactory,
+         Point, Coordinate, PrecisionModel - lives in the base package. -->
 
-    <!-- Other utilities -->
-    <PackageReference Include="StackExchange.Redis" Version="2.6.122" />
-    <PackageReference Include="Polly" Version="8.2.0" />
-    
+    <!-- Note: StackExchange.Redis and Polly were referenced but never used
+         anywhere in the codebase - removed. Re-add when actually implementing
+         Redis-backed rate limiting or resilience policies (see NEXT_STEPS_PLAN.md BE-6). -->
+
     <!-- Testing (optional, for later) -->
     <PackageReference Include="xunit" Version="2.6.6" />
     <PackageReference Include="Moq" Version="4.20.70" />

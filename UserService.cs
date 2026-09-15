@@ -1,5 +1,4 @@
 using System;
-using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Geometries;
 using ChessApp.Backend.Data;
@@ -29,18 +28,15 @@ public interface IUserService
 public class UserService : IUserService
 {
     private readonly ApplicationDbContext _dbContext;
-    private readonly IMapper _mapper;
     private readonly BlobContainerClient _blobContainerClient;
     private readonly ILogger<UserService> _logger;
 
     public UserService(
         ApplicationDbContext dbContext,
-        IMapper mapper,
         BlobContainerClient blobContainerClient,
         ILogger<UserService> logger)
     {
         _dbContext = dbContext;
-        _mapper = mapper;
         _blobContainerClient = blobContainerClient;
         _logger = logger;
     }

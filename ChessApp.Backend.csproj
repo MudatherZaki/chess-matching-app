@@ -36,8 +36,10 @@
     <!-- Azure Storage -->
     <PackageReference Include="Azure.Storage.Blobs" Version="12.18.0" />
 
-    <!-- SignalR for real-time -->
-    <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.1.0" />
+    <!-- Note: SignalR (AddSignalR, MapHub, Hub, IHubContext) is part of the
+         ASP.NET Core shared framework since .NET Core 3 - no package needed.
+         The old standalone "Microsoft.AspNetCore.SignalR" package (pre-3.0)
+         was removed here; referencing it against net8.0 would fail restore. -->
 
     <!-- Geospatial -->
     <PackageReference Include="NetTopologySuite" Version="2.5.1" />

@@ -12,10 +12,11 @@
 - ✅ **BE-7** — SignalR broadcasts wired into proposal create/accept/reject
 - ✅ **BE-9** — Migration/schema drift checked (found and fixed real inconsistencies between `ApplicationDbContext.cs` and `chess_app_schema.sql`); seed script added at `scripts/seed_test_data.sh`
 - ✅ **BE-5** — Password hashing moved from unsalted SHA-512 to bcrypt
+- ✅ **BE-4** — FluentValidation validators added for all 8 mutating endpoints, via a hand-written async action filter (not the deprecated `FluentValidation.AspNetCore` package)
 - ✅ **CI** — `.github/workflows/backend-ci.yml` added; backend now actually compiles and is verified green on every push (it did not compile at all when this plan was first written - see commit history for what that took)
-- ⬜ BE-4 (validation), BE-6 (rate limiting), BE-8 (unit tests) — not started
+- ✅ **[.NET 10 migration](https://github.com/MudatherZaki/chess-matching-app/issues/1)** — done ahead of the originally-planned "after this sprint" timing, at the user's request. Green on CI. Caught and avoided a known, currently-open runtime-only bug in `JwtBearer 10.0.1` (dotnet/aspnetcore#64932) that CI's restore+build alone would not have caught. Issue closed.
+- ⬜ BE-6 (rate limiting), BE-8 (unit tests) — not started
 - ⬜ Everything under Mobile (MO-\*) and Ops (OPS-\*) — not started
-- 📌 [Issue #1: Migrate backend to .NET 10](https://github.com/MudatherZaki/chess-matching-app/issues/1) — filed as future tech debt, deliberately scoped for *after* this sprint
 
 ---
 

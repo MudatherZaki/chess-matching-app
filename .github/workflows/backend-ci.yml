@@ -20,10 +20,36 @@ jobs:
           dotnet-version: '8.0.x'
 
       - name: Restore dependencies
-        run: dotnet restore ChessApp.Backend.csproj
+        id: restore
+        run: |
+          set -o pipefail
+          dotnet restore ChessApp.Backend.csproj 2>&1 | tee restore.log
 
       - name: Build
-        run: dotnet build ChessApp.Backend.csproj --no-restore --configuration Release
+        id: build
+        if: success()
+        run: |
+          set -o pipefail
+          dotnet build ChessApp.Backend.csproj --no-restore --configuration Release 2>&1 | tee build.log
+
+      # Surface failures as check-run annotations, queryable via the plain
+      # REST API (api.github.com), since the raw log download endpoint
+      # redirects to Azure Blob Storage which isn't reachable from every
+      # client. This turns the last lines of whichever step failed into
+      # ::error:: lines GitHub attaches to the check run.
+      - name: Surface failure as annotations
+        if: failure()
+        run: |
+          for f in restore.log build.log; do
+            if [ -f "$f" ]; then
+              echo "----- tail of $f -----"
+              tail -n 60 "$f" | while IFS= read -r line; do
+                # Strip characters that break the ::error:: workflow command
+                clean=$(echo "$line" | tr -d '\r')
+                echo "::error::$clean"
+              done
+            fi
+          done
 
       # No test project exists yet (xunit/Moq are referenced in the main
       # project for when unit tests are added - see NEXT_STEPS_PLAN.md BE-8).

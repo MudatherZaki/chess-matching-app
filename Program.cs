@@ -6,6 +6,8 @@ using Serilog;
 using Azure.Storage.Blobs;
 using ChessApp.Backend.Data;
 using ChessApp.Backend.Services;
+using ChessApp.Backend.Validators;
+using FluentValidation;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -134,7 +136,15 @@ builder.Services.AddCors(options =>
 // CONTROLLERS & SIGNALR
 // =====================================================
 
-builder.Services.AddControllers();
+builder.Services.AddControllers(options =>
+{
+    options.Filters.Add<ValidationActionFilter>();
+});
+
+// FluentValidation: registers every AbstractValidator<T> in this assembly
+// (see Validators.cs) so ValidationActionFilter can resolve IValidator<T>
+// for whatever DTO an action receives.
+builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 builder.Services.AddSignalR();
 
 // =====================================================

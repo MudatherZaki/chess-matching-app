@@ -133,7 +133,9 @@ public class ApplicationDbContext : DbContext
                 .HasMethod("GIST");
 
             entity.Property(e => e.Status)
-                .HasConversion(new EnumToStringConverter<ProposalStatus>());
+                .HasConversion(
+                    v => v.ToString().ToLowerInvariant(),
+                    v => Enum.Parse<ProposalStatus>(v, ignoreCase: true));
 
             entity.Property(e => e.Message).HasColumnType("text");
 
@@ -167,7 +169,9 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(e => e.PlayedAt);
 
             entity.Property(e => e.Outcome)
-                .HasConversion(new EnumToStringConverter<MatchOutcome>());
+                .HasConversion(
+                    v => MatchOutcomeToString(v),
+                    v => MatchOutcomeFromString(v));
 
             entity.Property(e => e.Location)
                 .HasColumnType("geography (point, 4326)");
@@ -258,6 +262,24 @@ public class ApplicationDbContext : DbContext
                 .HasDefaultValueSql("NOW()");
         });
     }
+
+    private static string MatchOutcomeToString(MatchOutcome outcome) => outcome switch
+    {
+        MatchOutcome.NotPlayed => "not_played",
+        MatchOutcome.Player1Won => "player1_won",
+        MatchOutcome.Player2Won => "player2_won",
+        MatchOutcome.Draw => "draw",
+        _ => outcome.ToString().ToLowerInvariant()
+    };
+
+    private static MatchOutcome MatchOutcomeFromString(string value) => value switch
+    {
+        "not_played" => MatchOutcome.NotPlayed,
+        "player1_won" => MatchOutcome.Player1Won,
+        "player2_won" => MatchOutcome.Player2Won,
+        "draw" => MatchOutcome.Draw,
+        _ => Enum.Parse<MatchOutcome>(value, ignoreCase: true)
+    };
 
     // Override SaveChanges to update UpdatedAt
     public override int SaveChanges()

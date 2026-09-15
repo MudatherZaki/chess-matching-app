@@ -15,11 +15,13 @@ public interface IProposalService
     
     Task<OutgoingProposalsResponse> GetOutgoingProposalsAsync(Guid userId, string? status = null, int limit = 20);
     
-    Task<AcceptProposalResponse> AcceptProposalAsync(Guid proposalId, AcceptProposalRequest request);
+    Task<AcceptProposalResponse> AcceptProposalAsync(Guid proposalId, Guid userId, AcceptProposalRequest request);
     
-    Task<RejectProposalResponse> RejectProposalAsync(Guid proposalId, RejectProposalRequest request);
+    Task<RejectProposalResponse> RejectProposalAsync(Guid proposalId, Guid userId, RejectProposalRequest request);
     
     Task CancelProposalAsync(Guid proposalId, Guid userId);
+
+    Task<Guid?> GetProposerIdAsync(Guid proposalId);
 }
 
 public interface IMatchService
@@ -173,7 +175,7 @@ public class ProposalService : IProposalService
     }
 
     public async Task<AcceptProposalResponse> AcceptProposalAsync(
-        Guid proposalId, AcceptProposalRequest request)
+        Guid proposalId, Guid userId, AcceptProposalRequest request)
     {
         var proposal = await _dbContext.Proposals
             .Include(p => p.Proposer)
@@ -181,6 +183,9 @@ public class ProposalService : IProposalService
 
         if (proposal == null)
             throw new KeyNotFoundException($"Proposal {proposalId} not found");
+
+        if (proposal.ReceiverId != userId)
+            throw new UnauthorizedAccessException("Only the receiver can accept this proposal");
 
         if (proposal.Status != ProposalStatus.Pending)
             throw new InvalidOperationException($"Cannot accept proposal with status {proposal.Status}");
@@ -221,19 +226,22 @@ public class ProposalService : IProposalService
         return new AcceptProposalResponse
         {
             Id = proposal.Id,
-            Status = proposal.Status.ToString(),
+            Status = proposal.Status.ToString().ToLowerInvariant(),
             RespondedAt = proposal.RespondedAt.Value,
             MatchId = match.Id
         };
     }
 
     public async Task<RejectProposalResponse> RejectProposalAsync(
-        Guid proposalId, RejectProposalRequest request)
+        Guid proposalId, Guid userId, RejectProposalRequest request)
     {
         var proposal = await _dbContext.Proposals.FindAsync(proposalId);
 
         if (proposal == null)
             throw new KeyNotFoundException($"Proposal {proposalId} not found");
+
+        if (proposal.ReceiverId != userId)
+            throw new UnauthorizedAccessException("Only the receiver can reject this proposal");
 
         if (proposal.Status != ProposalStatus.Pending)
             throw new InvalidOperationException($"Cannot reject proposal with status {proposal.Status}");
@@ -248,7 +256,7 @@ public class ProposalService : IProposalService
         return new RejectProposalResponse
         {
             Id = proposal.Id,
-            Status = proposal.Status.ToString(),
+            Status = proposal.Status.ToString().ToLowerInvariant(),
             RespondedAt = proposal.RespondedAt.Value
         };
     }
@@ -272,6 +280,14 @@ public class ProposalService : IProposalService
         _logger.LogInformation("Proposal {ProposalId} cancelled", proposalId);
     }
 
+    public async Task<Guid?> GetProposerIdAsync(Guid proposalId)
+    {
+        return await _dbContext.Proposals
+            .Where(p => p.Id == proposalId)
+            .Select(p => (Guid?)p.ProposerId)
+            .FirstOrDefaultAsync();
+    }
+
     private ProposalResponse MapToProposalResponse(Proposal proposal)
     {
         return new ProposalResponse
@@ -279,14 +295,13 @@ public class ProposalService : IProposalService
             Id = proposal.Id,
             ProposerId = proposal.ProposerId,
             ReceiverId = proposal.ReceiverId,
-            Status = proposal.Status.ToString(),
+            Status = proposal.Status.ToString().ToLowerInvariant(),
             Message = proposal.Message,
             MeetingLocation = proposal.MeetingLocation != null ? new LocationDto
             {
                 Latitude = proposal.MeetingLocation.Coordinate.Y,
                 Longitude = proposal.MeetingLocation.Coordinate.X
             } : null,
-            MaxDistanceKm = proposal.MaxDistanceKm,
             ExpiresAt = proposal.ExpiresAt,
             CreatedAt = proposal.CreatedAt
         };
@@ -298,7 +313,7 @@ public class ProposalService : IProposalService
         {
             Id = proposal.Id,
             Proposer = MapToPublicProfile(proposal.Proposer),
-            Status = proposal.Status.ToString(),
+            Status = proposal.Status.ToString().ToLowerInvariant(),
             Message = proposal.Message,
             ExpiresAt = proposal.ExpiresAt,
             CreatedAt = proposal.CreatedAt
@@ -311,7 +326,7 @@ public class ProposalService : IProposalService
         {
             Id = proposal.Id,
             Proposer = MapToPublicProfile(proposal.Receiver),
-            Status = proposal.Status.ToString(),
+            Status = proposal.Status.ToString().ToLowerInvariant(),
             Message = proposal.Message,
             ExpiresAt = proposal.ExpiresAt,
             CreatedAt = proposal.CreatedAt
@@ -333,7 +348,7 @@ public class ProposalService : IProposalService
         {
             Id = proposal.Id,
             Proposer = MapToPublicProfile(proposal.Proposer),
-            Status = proposal.Status.ToString(),
+            Status = proposal.Status.ToString().ToLowerInvariant(),
             Message = proposal.Message,
             MeetingLocation = proposal.MeetingLocation != null ? new LocationDto
             {
@@ -408,7 +423,7 @@ public class MatchService : IMatchService
         if (player2 == null)
             throw new KeyNotFoundException($"Opponent {request.OpponentId} not found");
 
-        var outcome = Enum.Parse<MatchOutcome>(request.Outcome, ignoreCase: true);
+        var outcome = ParseOutcome(request.Outcome);
 
         var match = new Match
         {
@@ -510,6 +525,29 @@ public class MatchService : IMatchService
         player.Stats.LastStatsUpdate = DateTime.UtcNow;
     }
 
+    private static MatchOutcome ParseOutcome(string outcome)
+    {
+        // Mobile sends snake_case (e.g. "player1_won"); the enum is PascalCase.
+        var normalized = outcome.Replace("_", "");
+        if (Enum.TryParse<MatchOutcome>(normalized, ignoreCase: true, out var parsed))
+            return parsed;
+
+        throw new InvalidOperationException(
+            $"Invalid outcome '{outcome}'. Expected one of: not_played, player1_won, player2_won, draw");
+    }
+
+    private static string FormatOutcome(MatchOutcome outcome)
+    {
+        return outcome switch
+        {
+            MatchOutcome.NotPlayed => "not_played",
+            MatchOutcome.Player1Won => "player1_won",
+            MatchOutcome.Player2Won => "player2_won",
+            MatchOutcome.Draw => "draw",
+            _ => outcome.ToString().ToLowerInvariant()
+        };
+    }
+
     private MatchDto MapToMatchDto(Match match, User opponent)
     {
         return new MatchDto
@@ -527,7 +565,7 @@ public class MatchService : IMatchService
                 Stats = opponent.Stats != null ? MapToStatsDto(opponent.Stats) : null
             },
             PlayedAt = match.PlayedAt,
-            Outcome = match.Outcome.ToString(),
+            Outcome = FormatOutcome(match.Outcome),
             PlayedWithBoard = match.PlayedWithBoard,
             TimeControl = match.TimeControl,
             Notes = match.Notes,

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace ChessApp.Backend.DTOs;
 
 // =====================================================
@@ -290,6 +292,9 @@ public class MatchHistoryResponse
 
 public class BlockUserRequest
 {
+    // Mobile sends { "userId": ..., "reason": ... } - map the wire name explicitly
+    // since it differs from the C# property name.
+    [JsonPropertyName("userId")]
     public Guid BlockedUserId { get; set; }
     public string? Reason { get; set; }
 }

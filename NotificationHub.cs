@@ -145,6 +145,18 @@ public class NotificationHub : Hub
         }
     }
 
+    public static async Task SendProposalRespondedNotification(
+        IHubContext<NotificationHub> hubContext,
+        Guid proposerId,
+        ProposalRespondedPayload payload)
+    {
+        if (UserConnections.TryGetValue(proposerId, out var connectionId))
+        {
+            await hubContext.Clients.Client(connectionId)
+                .SendAsync("ProposalResponded", payload);
+        }
+    }
+
     public static async Task BroadcastAvailabilityChange(
         IHubContext<NotificationHub> hubContext,
         UserAvailabilityChangedPayload payload)

@@ -1,5 +1,21 @@
 -- Chess Matchmaking App - PostgreSQL Schema with PostGIS
 -- Install PostGIS extension first: CREATE EXTENSION postgis;
+--
+-- ⚠️  REFERENCE ONLY - DO NOT RUN THIS FILE DIRECTLY AGAINST A DATABASE
+-- THAT EF CORE MIGRATIONS WILL ALSO MANAGE.
+--
+-- ApplicationDbContext.cs stores ProposalStatus/MatchOutcome via a plain
+-- string value converter (see Property(...).HasConversion(...)), which
+-- generates a `text`/`character varying` column - NOT the native Postgres
+-- ENUM types declared below (proposal_status, match_outcome). Running this
+-- file by hand and then applying EF migrations on top will conflict.
+--
+-- The source of truth for the real schema is:
+--   dotnet ef migrations add InitialCreate
+--   dotnet ef database update
+-- run against the current Models.cs / ApplicationDbContext.cs. This file
+-- is kept as a readable reference for the data shape, not as an install
+-- script.
 
 CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE EXTENSION IF NOT EXISTS uuid-ossp;

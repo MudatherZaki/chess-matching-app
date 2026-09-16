@@ -28,4 +28,6 @@ public class Match
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    public virtual List<Review> Reviews { get; set; } = new();
 }

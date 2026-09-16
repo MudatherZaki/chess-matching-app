@@ -21,6 +21,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<Block> Blocks { get; set; } = null!;
     public DbSet<RatingSnapshot> RatingSnapshots { get; set; } = null!;
     public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
+    public DbSet<Review> Reviews { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -111,6 +112,16 @@ public class ApplicationDbContext : DbContext
             entity.HasMany(e => e.Blocking)
                 .WithOne(b => b.Blocker)
                 .HasForeignKey(b => b.BlockerId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(e => e.ReviewsReceived)
+                .WithOne(r => r.Reviewee)
+                .HasForeignKey(r => r.RevieweeId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(e => e.ReviewsGiven)
+                .WithOne(r => r.Reviewer)
+                .HasForeignKey(r => r.ReviewerId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -223,6 +234,39 @@ public class ApplicationDbContext : DbContext
 
             // Constraint: blocker != blocked
             entity.ToTable(t => t.HasCheckConstraint("ck_different_users", "blocker_id != blocked_id"));
+        });
+
+        // =====================================================
+        // REVIEWS
+        // =====================================================
+
+        modelBuilder.Entity<Review>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            entity.HasIndex(e => e.RevieweeId);
+            entity.HasIndex(e => e.ReviewerId);
+
+            // Unique constraint: one review per reviewer per match
+            entity.HasIndex(e => new { e.MatchId, e.ReviewerId })
+                .IsUnique();
+
+            entity.Property(e => e.Comment).HasColumnType("text");
+
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("NOW()");
+
+            entity.HasOne(e => e.Match)
+                .WithMany(m => m.Reviews)
+                .HasForeignKey(e => e.MatchId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Constraint: reviewer != reviewee, rating within 1-5
+            entity.ToTable(t =>
+            {
+                t.HasCheckConstraint("ck_different_users", "reviewer_id != reviewee_id");
+                t.HasCheckConstraint("ck_rating_range", "rating >= 1 AND rating <= 5");
+            });
         });
 
         // =====================================================

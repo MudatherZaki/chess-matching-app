@@ -428,6 +428,84 @@ Record a completed match.
 
 ---
 
+## Reviews
+
+### POST `/reviews`
+Leave a review for the other player in a completed match. Only the two participants of the match may review each other, and each reviewer may leave at most one review per match.
+
+**Request:**
+```json
+{
+  "matchId": "550e8400-e29b-41d4-a716-446655440020",
+  "revieweeId": "550e8400-e29b-41d4-a716-446655440001",
+  "rating": 5,
+  "comment": "Great game, very sportsmanlike!"
+}
+```
+
+**Response (201):**
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440030",
+  "matchId": "550e8400-e29b-41d4-a716-446655440020",
+  "reviewerId": "550e8400-e29b-41d4-a716-446655440000",
+  "reviewerUsername": "classicalplayer99",
+  "reviewerPhotoUrl": null,
+  "revieweeId": "550e8400-e29b-41d4-a716-446655440001",
+  "rating": 5,
+  "comment": "Great game, very sportsmanlike!",
+  "createdAt": "2024-01-14T19:00:00Z"
+}
+```
+
+**Errors:**
+- `404` - match not found
+- `403` - reviewer is not a participant of the match
+- `400` - `revieweeId` isn't the other participant, or a review already exists for this reviewer/match, or `rating` isn't between 1 and 5
+
+---
+
+### GET `/reviews/user/{userId}`
+Get the reviews a user has received, along with their average rating. Public - no authentication required.
+
+**Query Params:**
+- `limit` (int, default: 20)
+- `offset` (int, default: 0)
+
+**Response (200):**
+```json
+{
+  "reviews": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440030",
+      "matchId": "550e8400-e29b-41d4-a716-446655440020",
+      "reviewerId": "550e8400-e29b-41d4-a716-446655440000",
+      "reviewerUsername": "classicalplayer99",
+      "reviewerPhotoUrl": null,
+      "revieweeId": "550e8400-e29b-41d4-a716-446655440001",
+      "rating": 5,
+      "comment": "Great game, very sportsmanlike!",
+      "createdAt": "2024-01-14T19:00:00Z"
+    }
+  ],
+  "count": 1,
+  "averageRating": 4.8
+}
+```
+
+---
+
+### GET `/reviews/given`
+Get the reviews the current user has written.
+
+**Query Params:**
+- `limit` (int, default: 20)
+- `offset` (int, default: 0)
+
+**Response (200):** Same shape as above (`averageRating` is always `null` here - it only applies to reviews *received*).
+
+---
+
 ## User Blocking
 
 ### POST `/blocks`

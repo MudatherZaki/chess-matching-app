@@ -98,6 +98,7 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IProposalService, ProposalService>();
 builder.Services.AddScoped<IMatchService, MatchService>();
 builder.Services.AddScoped<IBlockService, BlockService>();
+builder.Services.AddScoped<IReviewService, ReviewService>();
 
 // Azure Blob Storage
 var blobConnectionString = builder.Configuration.GetConnectionString("AzureBlobStorage")

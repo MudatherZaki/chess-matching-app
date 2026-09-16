@@ -56,4 +56,6 @@ public class User
     public virtual List<Block> Blocking { get; set; } = new();
     public virtual List<RefreshToken> RefreshTokens { get; set; } = new();
     public virtual List<RatingSnapshot> RatingSnapshots { get; set; } = new();
+    public virtual List<Review> ReviewsGiven { get; set; } = new();
+    public virtual List<Review> ReviewsReceived { get; set; } = new();
 }

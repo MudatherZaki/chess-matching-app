@@ -11,10 +11,16 @@
 
   <ItemGroup>
     <!-- Entity Framework Core -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.1" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.1" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL.NetTopologySuite" Version="10.0.0" />
+    <!-- Maps entity/property names to snake_case column/table names, matching
+         the check constraints and index filters below (e.g. "proposer_id",
+         "is_available") which are raw SQL fragments EF does not translate -
+         without this, EF's default PascalCase columns wouldn't match and
+         every migration touching them would fail at runtime. -->
+    <PackageReference Include="EFCore.NamingConventions" Version="10.0.1" />
 
     <!-- Authentication & Security -->
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.12" />
@@ -37,7 +43,7 @@
     <!-- Swagger / OpenAPI - Program.cs calls AddSwaggerGen/UseSwagger/UseSwaggerUI
          (Swashbuckle) and .WithOpenApi() on a minimal API endpoint
          (Microsoft.AspNetCore.OpenApi); neither package was referenced before. -->
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
 
     <!-- Note: AutoMapper was removed. It was injected into UserService but

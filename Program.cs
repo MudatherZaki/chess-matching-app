@@ -1,6 +1,7 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using EFCore.NamingConventions;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using Azure.Storage.Blobs;
@@ -36,7 +37,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(
         connectionString,
         x => x.UseNetTopologySuite()
-    )
+    ).UseSnakeCaseNamingConvention()
 );
 
 // =====================================================

@@ -123,7 +123,7 @@ public class ApplicationDbContext : DbContext
             entity.HasKey(e => e.Id);
 
             entity.HasIndex(e => new { e.ReceiverId, e.Status })
-                .HasFilter("status = 0"); // 0 = Pending
+                .HasFilter("status = 'pending'");
 
             entity.HasIndex(e => e.ProposerId);
             entity.HasIndex(e => e.Status);

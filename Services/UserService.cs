@@ -213,7 +213,7 @@ public class UserService : IUserService
         // Get nearby users using PostGIS spatial query
         var radiusMeters = radiusKm * 1000.0;
 
-        var nearbyUsers = await _dbContext.Users
+        var query = _dbContext.Users
             .Where(u =>
                 u.Id != userId &&
                 u.IsActive &&
@@ -223,7 +223,13 @@ public class UserService : IUserService
                 u.Location.Distance(currentUser.Location) <= radiusMeters &&
                 !_dbContext.Blocks.Any(b =>
                     (b.BlockerId == userId && b.BlockedId == u.Id) ||
-                    (b.BlockerId == u.Id && b.BlockedId == userId)))
+                    (b.BlockerId == u.Id && b.BlockedId == userId)));
+
+        // Filter in the query, before Take, so the limit counts only matching players
+        if (hasBoard.HasValue)
+            query = query.Where(u => u.HasBoard == hasBoard.Value);
+
+        var nearbyUsers = await query
             .Include(u => u.Stats)
             .OrderBy(u => u.Location!.Distance(currentUser.Location))
             .Take(limit)
@@ -235,9 +241,6 @@ public class UserService : IUserService
         {
             var distanceMeters = user.Location!.Distance(currentUser.Location);
             var distanceKm = Math.Round(distanceMeters / 1000.0, 2);
-
-            if (hasBoard.HasValue && user.HasBoard != hasBoard.Value)
-                continue;
 
             response.Users.Add(new NearbyUserDto
             {

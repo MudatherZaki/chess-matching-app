@@ -22,6 +22,8 @@ public class AuthResponse
     public string AccessToken { get; set; } = null!;
     public string RefreshToken { get; set; } = null!;
     public int ExpiresIn { get; set; } = 3600;
+    // True when this sign-in created the account (Lichess sign-up)
+    public bool IsNewUser { get; set; }
 }
 
 public class RefreshTokenRequest

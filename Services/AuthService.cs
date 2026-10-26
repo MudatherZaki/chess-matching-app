@@ -17,6 +17,9 @@ public interface IAuthService
     
     Task<(User user, string accessToken, string refreshToken)> LoginAsync(string email, string password);
     
+    // For a user already identified another way (e.g. Lichess sign-in)
+    Task<(string accessToken, string refreshToken)> IssueTokensAsync(User user);
+
     Task<string> RefreshAccessTokenAsync(string refreshToken);
     
     Task RevokeRefreshTokenAsync(string refreshToken);
@@ -102,6 +105,11 @@ public class AuthService : IAuthService
         var refreshToken = await GenerateRefreshTokenAsync(user.Id);
 
         return (user, accessToken, refreshToken);
+    }
+
+    public async Task<(string accessToken, string refreshToken)> IssueTokensAsync(User user)
+    {
+        return (GenerateAccessToken(user), await GenerateRefreshTokenAsync(user.Id));
     }
 
     public async Task<string> RefreshAccessTokenAsync(string refreshToken)

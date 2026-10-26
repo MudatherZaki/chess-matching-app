@@ -12,6 +12,8 @@ namespace ChessApp.Backend.Services;
 public interface ILichessIntegrationService
 {
     LichessAuthorizeResponse StartAuthorization(Guid userId);
+    LichessAuthorizeResponse StartSignIn();
+    Task<LichessSignInResult> SignInAsync(string code, string state, CancellationToken ct = default);
     Task<LinkedAccountDto> CompleteAuthorizationAsync(Guid userId, string code, string state, CancellationToken ct = default);
     Task<LinkedAccountDto> RefreshAsync(Guid userId, CancellationToken ct = default);
     Task UnlinkAsync(Guid userId, CancellationToken ct = default);
@@ -53,7 +55,11 @@ public class LichessIntegrationService : ILichessIntegrationService
         _logger = logger;
     }
 
-    public LichessAuthorizeResponse StartAuthorization(Guid userId)
+    public LichessAuthorizeResponse StartAuthorization(Guid userId) => Start(userId, scope: null);
+
+    public LichessAuthorizeResponse StartSignIn() => Start(userId: null, scope: "email:read");
+
+    private LichessAuthorizeResponse Start(Guid? userId, string? scope)
     {
         var state = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(24));
         var verifier = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(32));
@@ -65,7 +71,7 @@ public class LichessIntegrationService : ILichessIntegrationService
 
         return new LichessAuthorizeResponse
         {
-            AuthorizeUrl = _lichess.BuildAuthorizeUrl(state, challenge),
+            AuthorizeUrl = _lichess.BuildAuthorizeUrl(state, challenge, scope),
             State = state
         };
     }
@@ -73,24 +79,11 @@ public class LichessIntegrationService : ILichessIntegrationService
     public async Task<LinkedAccountDto> CompleteAuthorizationAsync(
         Guid userId, string code, string state, CancellationToken ct = default)
     {
-        if (!_cache.TryGetValue(CacheKey(state), out PendingAuth? pending) || pending == null)
-            throw new LichessAuthException("This Lichess sign-in expired. Please try connecting again.");
-        _cache.Remove(CacheKey(state));
-
+        var pending = TakePending(state);
         if (pending.UserId != userId)
             throw new LichessAuthException("This Lichess sign-in was started by a different user.");
 
-        var accessToken = await _lichess.ExchangeCodeAsync(code, pending.CodeVerifier, ct);
-        LichessUser lichessUser;
-        try
-        {
-            lichessUser = await _lichess.GetAccountAsync(accessToken, ct);
-        }
-        finally
-        {
-            try { await _lichess.RevokeTokenAsync(accessToken, ct); }
-            catch (Exception ex) { _logger.LogWarning(ex, "Failed to revoke Lichess token"); }
-        }
+        var (lichessUser, _) = await ReadIdentityAsync(code, pending.CodeVerifier, withEmail: false, ct);
 
         var externalId = lichessUser.Id.ToLowerInvariant();
 
@@ -121,6 +114,98 @@ public class LichessIntegrationService : ILichessIntegrationService
 
         _logger.LogInformation("User {UserId} linked Lichess account {LichessId}", userId, externalId);
         return LinkedAccountMapping.ToDto(account);
+    }
+
+    public async Task<LichessSignInResult> SignInAsync(string code, string state, CancellationToken ct = default)
+    {
+        var pending = TakePending(state);
+        if (pending.UserId != null)
+            throw new LichessAuthException("This Lichess sign-in was started for linking, not signing in.");
+
+        var (lichessUser, email) = await ReadIdentityAsync(code, pending.CodeVerifier, withEmail: true, ct);
+        if (lichessUser.Disabled)
+            throw new LichessAuthException("This Lichess account is closed.");
+
+        var externalId = lichessUser.Id.ToLowerInvariant();
+
+        // Returning player: whoever has this Lichess account linked (signing up
+        // with Lichess links it too, so this covers both ways of getting here)
+        var linked = await _dbContext.LinkedAccounts
+            .Include(a => a.User)
+            .FirstOrDefaultAsync(a => a.Platform == LinkedPlatforms.Lichess && a.ExternalId == externalId, ct);
+        if (linked != null)
+        {
+            if (!linked.User.IsActive)
+                throw new LichessAuthException("This BlitzMate account is inactive.");
+            Apply(linked, linked.User, lichessUser);
+            linked.User.LastLogin = DateTime.UtcNow;
+            await _dbContext.SaveChangesAsync(ct);
+            _logger.LogInformation("User {UserId} signed in with Lichess", linked.UserId);
+            return new LichessSignInResult(linked.User, IsNewUser: false);
+        }
+
+        if (string.IsNullOrWhiteSpace(email))
+            throw new LichessAuthException("Lichess didn't share your email address. Please allow it and try again.");
+        email = email.Trim().ToLowerInvariant();
+
+        // Don't attach Lichess to an existing account just because the emails
+        // match: the owner has to sign in with their password and link it
+        if (await _dbContext.Users.AnyAsync(u => u.Email == email, ct))
+            throw new LichessSignInConflictException(
+                $"There's already a BlitzMate account for {email}. Sign in with your password, " +
+                "then connect Lichess from your profile.");
+
+        var now = DateTime.UtcNow;
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = email,
+            Username = await PickUsernameAsync(lichessUser.Username, ct),
+            // No password yet: an unguessable hash so password sign-in can't match
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(32))),
+            IsActive = true,
+            CreatedAt = now,
+            UpdatedAt = now,
+            LastLogin = now
+        };
+        _dbContext.Users.Add(user);
+
+        var account = new LinkedAccount
+        {
+            UserId = user.Id,
+            Platform = LinkedPlatforms.Lichess,
+            IsVerified = true,
+            ConnectedAt = now
+        };
+        _dbContext.LinkedAccounts.Add(account);
+        Apply(account, user, lichessUser);
+
+        await _dbContext.SaveChangesAsync(ct);
+        _logger.LogInformation("User {UserId} signed up with Lichess account {LichessId}", user.Id, externalId);
+        return new LichessSignInResult(user, IsNewUser: true);
+    }
+
+    // The Lichess username if it's free and fits BlitzMate's rules
+    // (3-20 letters, digits or underscores), otherwise a numbered variant
+    private async Task<string> PickUsernameAsync(string lichessUsername, CancellationToken ct)
+    {
+        var baseName = new string(lichessUsername.Select(c => char.IsAsciiLetterOrDigit(c) ? c : '_').ToArray());
+        if (baseName.Length < 3)
+            baseName = baseName.PadRight(3, '_');
+        if (baseName.Length > 20)
+            baseName = baseName[..20];
+
+        if (!await _dbContext.Users.AnyAsync(u => u.Username == baseName, ct))
+            return baseName;
+
+        for (var n = 2; n < 1000; n++)
+        {
+            var suffix = $"_{n}";
+            var candidate = baseName[..Math.Min(baseName.Length, 20 - suffix.Length)] + suffix;
+            if (!await _dbContext.Users.AnyAsync(u => u.Username == candidate, ct))
+                return candidate;
+        }
+        throw new InvalidOperationException($"Couldn't find a free username for '{lichessUsername}'.");
     }
 
     public async Task<LinkedAccountDto> RefreshAsync(Guid userId, CancellationToken ct = default)
@@ -260,5 +345,41 @@ public class LichessIntegrationService : ILichessIntegrationService
 
     private static string CacheKey(string state) => $"lichess-oauth:{state}";
 
-    private record PendingAuth(Guid UserId, string CodeVerifier);
+    private PendingAuth TakePending(string state)
+    {
+        if (!_cache.TryGetValue(CacheKey(state), out PendingAuth? pending) || pending == null)
+            throw new LichessAuthException("This Lichess sign-in expired. Please try again.");
+        _cache.Remove(CacheKey(state));
+        return pending;
+    }
+
+    // Exchanges the code, reads who signed in (and their email when asked),
+    // then revokes the token: BlitzMate never keeps Lichess access
+    private async Task<(LichessUser User, string? Email)> ReadIdentityAsync(
+        string code, string codeVerifier, bool withEmail, CancellationToken ct)
+    {
+        var accessToken = await _lichess.ExchangeCodeAsync(code, codeVerifier, ct);
+        try
+        {
+            var user = await _lichess.GetAccountAsync(accessToken, ct);
+            var email = withEmail ? await _lichess.GetEmailAsync(accessToken, ct) : null;
+            return (user, email);
+        }
+        finally
+        {
+            try { await _lichess.RevokeTokenAsync(accessToken, ct); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Failed to revoke Lichess token"); }
+        }
+    }
+
+    // UserId is null for sign-in, set for linking an account to a signed-in user
+    private record PendingAuth(Guid? UserId, string CodeVerifier);
+}
+
+public record LichessSignInResult(User User, bool IsNewUser);
+
+/// <summary>Signing in with Lichess would collide with an existing BlitzMate account.</summary>
+public class LichessSignInConflictException : Exception
+{
+    public LichessSignInConflictException(string message) : base(message) { }
 }

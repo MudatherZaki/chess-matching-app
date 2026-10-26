@@ -61,7 +61,8 @@ public class LichessAuthException : Exception
 
 public interface ILichessClient
 {
-    string BuildAuthorizeUrl(string state, string codeChallenge);
+    string BuildAuthorizeUrl(string state, string codeChallenge, string? scope = null);
+    Task<string?> GetEmailAsync(string accessToken, CancellationToken ct = default);
     Task<string> ExchangeCodeAsync(string code, string codeVerifier, CancellationToken ct = default);
     Task<LichessUser> GetAccountAsync(string accessToken, CancellationToken ct = default);
     Task RevokeTokenAsync(string accessToken, CancellationToken ct = default);
@@ -83,10 +84,11 @@ public class LichessClient : ILichessClient
         _options = options.Value;
     }
 
-    public string BuildAuthorizeUrl(string state, string codeChallenge)
+    public string BuildAuthorizeUrl(string state, string codeChallenge, string? scope = null)
     {
-        // No scope requested: identity (GET /api/account) is all we need
-        return QueryHelpers.AddQueryString($"{_options.BaseUrl}/oauth", new Dictionary<string, string?>
+        // Linking needs no scope: identity (GET /api/account) is all it reads.
+        // Signing in asks for email:read to create the BlitzMate account.
+        var query = new Dictionary<string, string?>
         {
             ["response_type"] = "code",
             ["client_id"] = _options.ClientId,
@@ -94,7 +96,10 @@ public class LichessClient : ILichessClient
             ["code_challenge_method"] = "S256",
             ["code_challenge"] = codeChallenge,
             ["state"] = state,
-        });
+        };
+        if (!string.IsNullOrEmpty(scope))
+            query["scope"] = scope;
+        return QueryHelpers.AddQueryString($"{_options.BaseUrl}/oauth", query);
     }
 
     public async Task<string> ExchangeCodeAsync(string code, string codeVerifier, CancellationToken ct = default)
@@ -161,6 +166,26 @@ public class LichessClient : ILichessClient
         using var response = await _http.PostAsync("/api/users", body, ct);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<List<LichessUser>>(ct) ?? new();
+    }
+
+    // Needs a token granted the email:read scope
+    public async Task<string?> GetEmailAsync(string accessToken, CancellationToken ct = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/account/email");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        using var response = await _http.SendAsync(request, ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+            throw new LichessAuthException("Lichess didn't share your email address. Please allow it and try again.");
+        response.EnsureSuccessStatusCode();
+
+        var body = await response.Content.ReadFromJsonAsync<EmailResponse>(ct);
+        return body?.Email;
+    }
+
+    private class EmailResponse
+    {
+        public string? Email { get; set; }
     }
 
     private class TokenResponse

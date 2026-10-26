@@ -10,11 +10,16 @@ namespace ChessApp.Backend.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly ILichessIntegrationService _lichess;
     private readonly ILogger<AuthController> _logger;
 
-    public AuthController(IAuthService authService, ILogger<AuthController> logger)
+    public AuthController(
+        IAuthService authService,
+        ILichessIntegrationService lichess,
+        ILogger<AuthController> logger)
     {
         _authService = authService;
+        _lichess = lichess;
         _logger = logger;
     }
 
@@ -164,6 +169,62 @@ public class AuthController : ControllerBase
                 Error = "InternalServerError",
                 Message = "Logout failed"
             });
+        }
+    }
+
+    /// <summary>
+    /// Start signing in (or up) with Lichess. Open the returned URL in a browser;
+    /// Lichess redirects back to the app's deep link with ?code=...&amp;state=...
+    /// </summary>
+    [HttpPost("lichess/authorize")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(LichessAuthorizeResponse), StatusCodes.Status200OK)]
+    public IActionResult AuthorizeLichess()
+    {
+        return Ok(_lichess.StartSignIn());
+    }
+
+    /// <summary>
+    /// Finish signing in with Lichess. Signs in the player who has that Lichess
+    /// account linked, or creates a new account from it (IsNewUser = true).
+    /// </summary>
+    [HttpPost("lichess/callback")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status502BadGateway)]
+    public async Task<IActionResult> LichessCallback([FromBody] LichessCallbackRequest request, CancellationToken ct)
+    {
+        try
+        {
+            var result = await _lichess.SignInAsync(request.Code, request.State, ct);
+            var (accessToken, refreshToken) = await _authService.IssueTokensAsync(result.User);
+
+            return Ok(new AuthResponse
+            {
+                UserId = result.User.Id,
+                Email = result.User.Email,
+                Username = result.User.Username,
+                AccessToken = accessToken,
+                RefreshToken = refreshToken,
+                ExpiresIn = 3600,
+                IsNewUser = result.IsNewUser
+            });
+        }
+        catch (LichessAuthException ex)
+        {
+            _logger.LogWarning("Lichess sign-in failed: {Message}", ex.Message);
+            return BadRequest(new ErrorResponse { Error = "LichessAuthFailed", Message = ex.Message });
+        }
+        catch (LichessSignInConflictException ex)
+        {
+            return Conflict(new ErrorResponse { Error = "AccountExists", Message = ex.Message });
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "Lichess unreachable during sign-in");
+            return StatusCode(502, new ErrorResponse { Error = "LichessUnavailable", Message = "Could not reach Lichess. Please try again." });
         }
     }
 }

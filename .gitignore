@@ -36,3 +36,8 @@ Thumbs.db
 # Node
 node_modules/
 npm-debug.log
+
+# Python (tools/video-to-lichess)
+__pycache__/
+*.pyc
+.venv/

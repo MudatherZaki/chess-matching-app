@@ -139,7 +139,7 @@ def main() -> int:
             print(f"game {gid}: skipped (annotations don't form a legal game from the start)")
             continue
         print(
-            f"game {gid:3d} [{r['camera']}]: squares read right {r['square_acc']:.1%}, "
+            f"game {gid:3d} [{r['camera']}]: squares read right by the first-image reader {r['square_acc']:.1%}, "
             f"moves right until move {r['correct_prefix']}/{r['half_moves']}"
             f"{' (exact)' if r['exact'] else ''}",
             flush=True,

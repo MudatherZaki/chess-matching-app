@@ -67,9 +67,9 @@ Results on all 20 ChessReD2K games (about 100 half-moves each), 2026-11-19:
 | | |
 |---|---|
 | Games read exactly, start to finish | 7 of 20 |
-| Games right except the last 1 or 2 half-moves | 6 more |
+| Games right except the very last half-move | 6 more |
 | Median share of a game read before the first mistake | 99% |
-| Worst games | first mistake after 45 to 60 half-moves (4 games) |
+| Worst games | first mistake after 45 to 64 half-moves (4 games) |
 
 Two things to know when reading these numbers:
 
